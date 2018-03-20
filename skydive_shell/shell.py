@@ -2,15 +2,17 @@ import pprint
 import argparse
 import json
 import urllib.request
+import logging
 
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.validation import Validator, ValidationError
 from prompt_toolkit.history import InMemoryHistory
+
 from lark import Lark, UnexpectedInput
 
 
-grammar = """
+skydive_grammar = """
 start : G "." v ("." expr)? " "?
 G : "g"
 v : V ")"
@@ -23,28 +25,21 @@ expr : expr "." expr
 
 traversal : HAS "(" HAS_METADATA ("," HAS_VALUE)? ")"
           | OUT
+          | KEYS
+          | COUNT
 
 HAS : "has"
 HAS_METADATA : STRING
 HAS_VALUE : STRING
 
 OUT : "out()"
+KEYS : "keys()"
+COUNT : "count()"
+
 %import common.ESCAPED_STRING   -> STRING
 """
 
-
-larkParser = Lark(grammar)
-
-
-def find_valid_expr(expr):
-    for i in range(len(expr), 1, -1):
-        try:
-            tree = larkParser.parse(expr[:i])
-        except:
-            continue
-        return expr[:i], expr[i+1:], tree
-    return "", "", None
-
+larkParser = Lark(skydive_grammar)
 
 token_mapping = {"__COMMA": ",",
                  "__RPAR": ")",
@@ -52,7 +47,23 @@ token_mapping = {"__COMMA": ",",
                  "__DOT": ".",
                  "V": "v(",
                  "HAS": "has",
-                 "OUT": "out"}
+                 "KEYS": "keys()",
+                 "COUNT": "count()",
+                 "OUT": "out()"}
+
+
+# We iterate on the expression to find a valid expression by removing
+# each time the last character.
+# For instance:
+# find_valid_expr("g.v().has(") returns ("g.v()", ".has(")
+def find_valid_expr(expr):
+    for i in range(len(expr), 1, -1):
+        try:
+            larkParser.parse(expr[:i])
+        except:
+            continue
+        return expr[:i], expr[i+1:]
+    return "", ""
 
 
 def skydive_query(endpoint, query):
@@ -62,10 +73,14 @@ def skydive_query(endpoint, query):
         req = urllib.request.Request("http://%s/api/topology" % endpoint,
                                      data.encode(),
                                      {'Content-Type': 'application/json'})
-        resp = urllib.request.urlopen(req)
+        try:
+            resp = urllib.request.urlopen(req)
+        except urllib.error.URLError as e:
+            logging.warning("Error while connecting to '%s': %s" % (endpoint, str(e)))
+            return []
         if resp.getcode() != 200:
-            print(resp.getcode())
-            return
+            logging.warning("Skydive returns error code '%d' for the query '%s'" % (resp.getcode(), query))
+            return []
 
         data = resp.read()
         objs = json.loads(data.decode())
@@ -82,24 +97,25 @@ def skydive_get_completions(endpoint, query):
     position = 0
     try:
         # We add a space at the end of the query to let the parser
-        # generates UnexpectedInput in order to get back expected
-        # TOKEN list.
-        tree = larkParser.parse(query + " ")
+        # generates an UnexpectedInput error in order to get back
+        # useful parsing information
+        larkParser.parse(query + " ")
     except UnexpectedInput as e:
         # print(e)
-        base, partial, tree = (find_valid_expr(query))
+        base, partial = (find_valid_expr(query))
         # print("base: %s last: %s tree: %s" % (base, last, tree))
         position = e.column - len(query)
         if "HAS_METADATA" in e.allowed:
             # To remove the introduced leading space
             partial = e.context[:-1]
             request = format("%s.keys()" % base)
-            completions = skydive_query_list_string(skydive_url, request)
+            completions = skydive_query_list_string(endpoint, request)
         elif "HAS_VALUE" in e.allowed:
+            # To remove the introduced leading space
             partial = e.context[:-1]
-            base, last, tree = (find_valid_expr(query[0:e.column-1]))
+            base, last = (find_valid_expr(query[0:e.column-1]))
             request = base + "." + last.replace("has", "values") + ")"
-            completions = skydive_query_list_string(skydive_url, request)
+            completions = skydive_query_list_string(endpoint, request)
         elif "STRING" in e.allowed:
             pass
         else:
@@ -121,47 +137,43 @@ class SkydiveValidator(Validator):
 
 
 class SkydiveCompleter(Completer):
+    def __init__(self, skydive_url):
+        self._skydive_url = skydive_url
+
     def get_completions(self, document, complete_event):
-        position, c = skydive_get_completions(skydive_url,
+        position, c = skydive_get_completions(self._skydive_url,
                                               document.text_before_cursor)
         return [Completion(i, start_position=position) for i in c]
 
 
 def main():
-    history = InMemoryHistory()
-
-    while True:
-        query = prompt('> ',
-                       completer=SkydiveCompleter(),
-                       validator=SkydiveValidator(),
-                       history=history,
-                       complete_while_typing=False)
-        r = skydive_query(skydive_url, query)
-        pprint.pprint(r)
-
-if __name__ == '__main__':
     parser = argparse.ArgumentParser(
          description='Skydive Network Analyzer Shell')
     parser.add_argument('--host', default="localhost",
                         help='Skydive analyzer host')
-    parser.add_argument('--port', default="8081",
+    parser.add_argument('--port', default="8082",
                         help='Skydive analyzer port')
+    parser.add_argument('--disable-validation', default=False,
+                        action="store_true",
+                        help='Disable Gremlin query validation ')
     args = parser.parse_args()
+
+    logging.basicConfig(level=logging.DEBUG)
+
     skydive_url = "%s:%s" % (args.host, args.port)
     print("Using Skydive Analyzer %s:%s" % (args.host, args.port))
-    main()
 
+    history = InMemoryHistory()
 
-# def test(query):
-#     print(query)
-#     print(skydive_get_completions("localhost:8182", query))
+    validator = SkydiveValidator()
+    if args.disable_validation:
+        validator = None
 
-# test(sys.argv[1])
-# assert skydive_get_completions("localhost:8182", "g") == (0, ["."])
-# assert skydive_get_completions("localhost:8182", "g.v(") == (0, [])
-# print("iop", skydive_get_completions("localhost:8182", "g.v"))
-# assert skydive_get_completions("localhost:8182", "g.v") == (-1, ['v('])
-
-
-# test('g.v().values("Name")')
-# print()
+    while True:
+        query = prompt('> ',
+                       completer=SkydiveCompleter(skydive_url),
+                       validator=validator,
+                       history=history,
+                       complete_while_typing=False)
+        r = skydive_query(skydive_url, query)
+        pprint.pprint(r)
