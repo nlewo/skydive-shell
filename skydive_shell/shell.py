@@ -11,6 +11,11 @@ from prompt_toolkit.history import InMemoryHistory
 
 from lark import Lark, UnexpectedInput
 
+import json
+from pygments import highlight
+from pygments.lexers import JsonLexer
+from pygments.formatters import TerminalFormatter
+
 
 skydive_grammar = """
 start : G "." v ("." expr)? " "?
@@ -77,19 +82,19 @@ def skydive_query(endpoint, query):
             resp = urllib.request.urlopen(req)
         except urllib.error.URLError as e:
             logging.warning("Error while connecting to '%s': %s" % (endpoint, str(e)))
-            return []
+            return "{}"
         if resp.getcode() != 200:
             logging.warning("Skydive returns error code '%d' for the query '%s'" % (resp.getcode(), query))
-            return []
+            return "{}"
 
         data = resp.read()
-        objs = json.loads(data.decode())
-        return objs
+        return data.decode()
 
 
 def skydive_query_list_string(endpoint, query):
     l = skydive_query(endpoint, query)
-    return ['"%s"' % a for a in l if a.__class__ == str]
+    objs = json.loads(l)
+    return ['"%s"' % a for a in objs if a.__class__ == str]
 
 
 def skydive_get_completions(endpoint, query):
@@ -175,5 +180,7 @@ def main():
                        validator=validator,
                        history=history,
                        complete_while_typing=False)
+
         r = skydive_query(skydive_url, query)
-        pprint.pprint(r)
+        j = json.dumps(json.loads(r), indent=2, sort_keys=True)
+        print(highlight(j, JsonLexer(), TerminalFormatter()))
