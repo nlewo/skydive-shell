@@ -21,6 +21,7 @@ from pygments.formatters import TerminalFormatter
 skydive_grammar = """
 start : G "." v ("." expr)? " "? -> gremlin
       | _SET " " _option         -> set
+      | _HELP                    -> help
 v : V ")"
   | V STRING ")"
 
@@ -55,6 +56,7 @@ _PRETTY : "pretty"
 _JSON : "json"
 _SET : ":set"
 _FORMAT : "format"
+_HELP : ":?"
 
 %import common.ESCAPED_STRING   -> STRING
 %import common.NUMBER
@@ -77,10 +79,21 @@ token_mapping = {"__COMMA": ",",
                  "COUNT": "count()",
                  "G": "g",
                  "_SET": ":set",
+                 "_HELP": ":?",
                  "_FORMAT": "format",
                  "_PRETTY": "pretty",
                  "_JSON": "json",
                  "OUT": "out()"}
+
+
+def help():
+    msg = (
+        "--- The Skydive shell help ---\n"
+        " > :?   for infinite recursion\n"
+        " > :set to set contextual options\n"
+        " > g    for Skydive query (Gremlin dialect)\n"
+    )
+    print(msg)
 
 
 # We iterate on the expression to find a valid expression by removing
@@ -213,6 +226,8 @@ def format_pretty(objs):
 class ShellTree(InlineTransformer):
     formatter = "json"
 
+    def help(self, *args): return ("help", None)
+
     def set(self, a): return ("set", a)
 
     def gremlin(self, *args): return ("gremlin", None)
@@ -241,6 +256,7 @@ def main():
 
     skydive_url = "%s:%s" % (args.host, args.port)
     print("Using Skydive Analyzer %s:%s" % (args.host, args.port))
+    print("Type :? for help")
 
     history = InMemoryHistory()
 
@@ -263,6 +279,8 @@ def main():
         action, arg = ShellTree().transform(tree)
         if action == "set":
             formatFunctionName = eval(arg)
+        elif action == "help":
+            help()
         else:
             r = skydive_query(skydive_url, query)
             j = json.loads(r)
