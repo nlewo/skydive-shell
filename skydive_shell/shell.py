@@ -197,12 +197,12 @@ def get_completions(endpoint, query):
         position = e.column - len(query)
         if "HAS_METADATA" in e.allowed:
             # To remove the introduced leading space
-            partial = e.context[:-2]
+            partial = e.context[:-1]
             request = format("%s.keys()" % base)
             completions = skydive_query_list_string(endpoint, request)
         elif "HAS_VALUE" in e.allowed:
             # To remove the introduced leading space
-            partial = e.context[:-2]
+            partial = e.context[:-1]
             base, last = (find_valid_expr(query[0:e.column-1]))
             request = base + "." + last.replace("has", "values") + ")"
             completions = skydive_query_list_string(endpoint, request)
