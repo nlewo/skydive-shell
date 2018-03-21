@@ -4,11 +4,12 @@ import urllib.request
 import logging
 import functools
 import operator
+import os
 
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.validation import Validator, ValidationError
-from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.history import FileHistory
 
 from lark import Lark, UnexpectedInput, InlineTransformer
 
@@ -51,7 +52,6 @@ _option : _FORMAT " " format
 HAS_METADATA : STRING
 HAS_VALUE : STRING
 CAPTURE_UUID : /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/
-
 
 G : "g"
 V : "v("
@@ -311,7 +311,9 @@ def main():
     print("Using Skydive Analyzer %s:%s" % (args.host, args.port))
     print("Type :? for help")
 
-    history = InMemoryHistory()
+    conf_dir = os.path.expanduser('~/.config/skydive-shell/')
+    os.makedirs(conf_dir, exist_ok=True)
+    history = FileHistory(os.path.os.path.join(conf_dir, "history"))
 
     validator = SkydiveValidator()
     if args.disable_validation:
@@ -319,7 +321,6 @@ def main():
         validator = None
 
     formatFunctionName = format_json
-
     while True:
         query = prompt('> ',
                        completer=SkydiveCompleter(skydive_url),
