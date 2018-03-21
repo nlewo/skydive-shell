@@ -23,6 +23,14 @@ class TestCompletions(unittest.TestCase):
             skydive_shell.get_completions("localhost:8182", ":set format "),
             (0, ['json', 'pretty']))
 
+    def test_find_valid_expr(self):
+        self.assertEqual(
+            skydive_shell.find_valid_expr("capture create g.v().has("),
+            ('g.v()', 'has('))
+        self.assertEqual(
+            skydive_shell.find_valid_expr("g.v().has("),
+            ('g.v()', 'has('))
+
 
 if __name__ == '__main__':
     unittest.main()

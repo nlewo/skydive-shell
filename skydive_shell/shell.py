@@ -22,10 +22,11 @@ skydive_grammar = """
 start : gremlin                  -> gremlin
       | _SET " " _option         -> set
       | _HELP                    -> help
-      | _capture                  -> capture
+      | _capture                 -> capture
 
 _capture : _CAPTURE " " CAPTURE_LIST
-
+         | _CAPTURE " " CAPTURE_CREATE " " gremlin
+         | _CAPTURE " " CAPTURE_DELETE " " CAPTURE_UUID
 !gremlin : G "." v ("." expr)? " "?
 
 v : V ")"
@@ -48,6 +49,8 @@ _option : _FORMAT " " format
 
 HAS_METADATA : STRING
 HAS_VALUE : STRING
+CAPTURE_UUID : /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/
+
 
 G : "g"
 V : "v("
@@ -65,6 +68,8 @@ _FORMAT : "format"
 _HELP : ":?"
 _CAPTURE: "capture"
 CAPTURE_LIST: "list"
+CAPTURE_CREATE: "create"
+CAPTURE_DELETE: "delete"
 
 %import common.ESCAPED_STRING   -> STRING
 %import common.NUMBER
@@ -80,6 +85,8 @@ token_mapping = {"__COMMA": ",",
 
                  "_CAPTURE": "capture",
                  "CAPTURE_LIST": "list",
+                 "CAPTURE_CREATE": "create",
+                 "CAPTURE_DELETE": "delete",
                  "V": "v(",
                  "HAS": "has",
                  "VALUES": "values",
@@ -106,7 +113,7 @@ def help():
     print(msg)
 
 
-# We iterate on the expression to find a valid expression by removing
+# We iterate on the expression to find a valid Gremlin expression by removing
 # each time the last character.
 # For instance:
 # find_valid_expr("g.v().has(") returns ("g.v()", ".has(")
@@ -116,21 +123,24 @@ def find_valid_expr(expr):
             larkParser.parse(expr[:i])
         except:
             continue
-        return expr[:i], expr[i+1:]
+        # Really hacky!!! this is to remove "capture list g."
+        base = expr[:i].split(" ")[-1]
+        return base, expr[i+1:]
     return "", ""
 
 
-def skydive_post(endpoint, command, data):
+def skydive_request(url, method=None, data=None):
     d = None
     if data is not None:
         d = data.encode()
-    req = urllib.request.Request("http://%s/api/%s" % (endpoint, command),
+    req = urllib.request.Request(url,
                                  d,
-                                 {'Content-Type': 'application/json'})
+                                 {'Content-Type': 'application/json'},
+                                 method=method)
     try:
         resp = urllib.request.urlopen(req)
     except urllib.error.URLError as e:
-        logging.warning("Error while connecting to '%s': %s" % (endpoint, str(e)))
+        logging.warning("Error while connecting to '%s': %s" % (url, str(e)))
         return "{}"
     if resp.getcode() != 200:
         logging.warning("Skydive returns error code '%d' for the data '%s'" % (resp.getcode(), data))
@@ -144,18 +154,23 @@ def skydive_query(endpoint, query):
     data = json.dumps(
         {"GremlinQuery": query}
     )
-    return skydive_post(endpoint, "topology", data)
+    return skydive_request("http://%s/api/topology" % endpoint, data=data)
 
 
 def skydive_capture_create(endpoint, query):
     data = json.dumps(
         {"GremlinQuery": query}
     )
-    return skydive_post(endpoint, "capture", data)
+    return skydive_request("http://%s/api/capture" % endpoint, data=data)
 
 
 def skydive_capture_list(endpoint):
-    return skydive_post(endpoint, "capture", None)
+    return skydive_request("http://%s/api/capture" % endpoint)
+
+
+def skydive_capture_delete(endpoint, capture_id):
+    return skydive_request("http://%s/api/capture/%s" % (endpoint, capture_id),
+                           method="DELETE")
 
 
 # Generates a list of string (if possible) from the skydive_query
@@ -191,6 +206,10 @@ def get_completions(endpoint, query):
             base, last = (find_valid_expr(query[0:e.column-1]))
             request = base + "." + last.replace("has", "values") + ")"
             completions = skydive_query_list_string(endpoint, request)
+        elif "CAPTURE_UUID" in e.allowed:
+            j = json.loads(skydive_request("http://%s/api/capture" % endpoint))
+            completions = j.keys()
+            pass
         elif "STRING" in e.allowed:
             pass
         else:
@@ -254,8 +273,8 @@ def format_pretty(objs):
 class ShellTree(InlineTransformer):
     formatter = "json"
 
-    def capture(self, a):
-        return ("capture", a)
+    def capture(self, *args):
+        return ("capture", args[0])
 
     def help(self, *args): return ("help", None)
 
@@ -318,6 +337,16 @@ def main():
             r = skydive_capture_list(skydive_url)
             j = json.loads(r)
             print(format_json(j))
+        elif action == "capture" and arg == "create":
+            # Hacky. We should use the tree to rebuild the gremlin
+            # expression...
+            q = query.split(" ", 2)[2]
+            r = skydive_capture_create(skydive_url, q)
+            j = json.loads(r)
+            print(format_json(j))
+        elif action == "capture" and arg == "delete":
+            capture_id = query.split(" ", 2)[2]
+            skydive_capture_delete(skydive_url, capture_id)
         else:
             r = skydive_query(skydive_url, query)
             j = json.loads(r)
