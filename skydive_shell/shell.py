@@ -32,6 +32,7 @@ traversal : HAS "(" HAS_METADATA ("," HAS_VALUE)? ")"
           | KEYS
           | COUNT
           | VALUES "(" HAS_METADATA ")"
+          | DEDUP
 
 _option : _FORMAT " " format
 !format : _PRETTY
@@ -44,6 +45,7 @@ G : "g"
 V : "v("
 HAS : "has"
 VALUES : "values"
+DEDUP : "dedup()"
 OUT : "out()"
 KEYS : "keys()"
 COUNT : "count()"
@@ -66,6 +68,7 @@ token_mapping = {"__COMMA": ",",
                  "V": "v(",
                  "HAS": "has",
                  "VALUES": "values",
+                 "DEDUP": "dedup()",
                  "KEYS": "keys()",
                  "COUNT": "count()",
                  "G": "g",
