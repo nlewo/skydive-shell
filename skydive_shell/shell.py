@@ -308,8 +308,6 @@ def main():
     print("Using Skydive Analyzer %s:%s" % (args.host, args.port))
     print("Type :? for help")
 
-    print(skydive_capture_list(skydive_url))
-
     history = InMemoryHistory()
 
     validator = SkydiveValidator()
