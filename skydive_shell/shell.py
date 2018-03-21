@@ -31,6 +31,7 @@ traversal : HAS "(" HAS_METADATA ("," HAS_VALUE)? ")"
           | OUT
           | KEYS
           | COUNT
+          | VALUES "(" HAS_METADATA ")"
 
 _option : _FORMAT " " format
 !format : _PRETTY
@@ -42,6 +43,7 @@ HAS_VALUE : STRING
 G : "g"
 V : "v("
 HAS : "has"
+VALUES : "values"
 OUT : "out()"
 KEYS : "keys()"
 COUNT : "count()"
@@ -63,6 +65,7 @@ token_mapping = {"__COMMA": ",",
 
                  "V": "v(",
                  "HAS": "has",
+                 "VALUES": "values",
                  "KEYS": "keys()",
                  "COUNT": "count()",
                  "G": "g",
