@@ -42,6 +42,7 @@ traversal : HAS HAS_METADATA ("," HAS_VALUE)? ")"
           | VALUES "(" HAS_METADATA ")"
           | DEDUP
           | LIMIT "(" NUMBER ")"
+          | FLOWS
 
 _option : _FORMAT " " format
 !format : _PRETTY
@@ -57,6 +58,7 @@ V : "v("
 HAS : "has("
 VALUES : "values"
 DEDUP : "dedup()"
+FLOWS : "flows()"
 LIMIT : "limit"
 OUT : "out()"
 KEYS : "keys()"
@@ -91,6 +93,7 @@ token_mapping = {"__COMMA": ",",
                  "HAS": "has(",
                  "VALUES": "values",
                  "DEDUP": "dedup()",
+                 "FLOWS": "flows()",
                  "LIMIT": "limit",
                  "KEYS": "keys()",
                  "COUNT": "count()",
