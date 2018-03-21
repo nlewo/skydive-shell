@@ -1,6 +1,5 @@
 import argparse
 import json
-import urllib.request
 import logging
 import functools
 import operator
@@ -16,6 +15,9 @@ from lark import Lark, UnexpectedInput, InlineTransformer
 from pygments import highlight
 from pygments.lexers import JsonLexer
 from pygments.formatters import TerminalFormatter
+
+from . import api
+
 
 # We explicitly define all terminal in order to predict their name for
 # the completion mapping
@@ -132,58 +134,6 @@ def find_valid_expr(expr):
     return "", ""
 
 
-def skydive_request(url, method=None, data=None):
-    d = None
-    if data is not None:
-        d = data.encode()
-    req = urllib.request.Request(url,
-                                 d,
-                                 {'Content-Type': 'application/json'},
-                                 method=method)
-    try:
-        resp = urllib.request.urlopen(req)
-    except urllib.error.URLError as e:
-        logging.warning("Error while connecting to '%s': %s" % (url, str(e)))
-        return "{}"
-    if resp.getcode() != 200:
-        logging.warning("Skydive returns error code '%d' for the data '%s'" % (resp.getcode(), data))
-        return "{}"
-
-    data = resp.read()
-    return data.decode()
-
-
-def skydive_query(endpoint, query):
-    data = json.dumps(
-        {"GremlinQuery": query}
-    )
-    return skydive_request("http://%s/api/topology" % endpoint, data=data)
-
-
-def skydive_capture_create(endpoint, query):
-    data = json.dumps(
-        {"GremlinQuery": query}
-    )
-    return skydive_request("http://%s/api/capture" % endpoint, data=data)
-
-
-def skydive_capture_list(endpoint):
-    return skydive_request("http://%s/api/capture" % endpoint)
-
-
-def skydive_capture_delete(endpoint, capture_id):
-    return skydive_request("http://%s/api/capture/%s" % (endpoint, capture_id),
-                           method="DELETE")
-
-
-# Generates a list of string (if possible) from the skydive_query
-# output.
-def skydive_query_list_string(endpoint, query):
-    l = skydive_query(endpoint, query)
-    objs = json.loads(l)
-    return ['"%s"' % a for a in objs if a.__class__ == str]
-
-
 # We use parser errors with expected TOKEN to generate the completion
 # list.
 def get_completions(endpoint, query):
@@ -202,15 +152,16 @@ def get_completions(endpoint, query):
             # To remove the introduced leading space
             partial = e.context[:-1]
             request = format("%s.keys()" % base)
-            completions = skydive_query_list_string(endpoint, request)
+            completions = api.gremlin_query_list_string(endpoint, request)
         elif "HAS_VALUE" in e.allowed:
             # To remove the introduced leading space
             partial = e.context[:-1]
             base, last = (find_valid_expr(query[0:e.column-1]))
             request = base + "." + last.replace("has", "values") + ")"
-            completions = skydive_query_list_string(endpoint, request)
+            completions = api.gremlin_query_list_string(endpoint, request)
         elif "CAPTURE_UUID" in e.allowed:
-            j = json.loads(skydive_request("http://%s/api/capture" % endpoint))
+            j = json.loads(api.request(
+                "http://%s/api/capture" % endpoint))
             completions = j.keys()
             pass
         elif "STRING" in e.allowed:
@@ -336,20 +287,20 @@ def main():
         elif action == "help":
             help()
         elif action == "capture" and arg == "list":
-            r = skydive_capture_list(skydive_url)
+            r = api.capture_list(skydive_url)
             j = json.loads(r)
             print(format_json(j))
         elif action == "capture" and arg == "create":
             # Hacky. We should use the tree to rebuild the gremlin
             # expression...
             q = query.split(" ", 2)[2]
-            r = skydive_capture_create(skydive_url, q)
+            r = api.capture_create(skydive_url, q)
             j = json.loads(r)
             print(format_json(j))
         elif action == "capture" and arg == "delete":
             capture_id = query.split(" ", 2)[2]
-            skydive_capture_delete(skydive_url, capture_id)
+            api.capture_delete(skydive_url, capture_id)
         else:
-            r = skydive_query(skydive_url, query)
+            r = api.gremlin_query(skydive_url, query)
             j = json.loads(r)
             print(formatFunctionName(j))
