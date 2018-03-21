@@ -77,7 +77,6 @@ token_mapping = {"__COMMA": ",",
                  "__RPAR": ")",
                  "__LPAR": "(",
                  "__DOT": ".",
-                 "__SPACE": " ",
 
                  "_CAPTURE": "capture",
                  "CAPTURE_LIST": "list",
