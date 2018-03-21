@@ -196,7 +196,7 @@ def format_pretty(objs):
     if objs.__class__ is list:
         for o in objs:
             # If object is not a node, we don't  it
-            if not o.get("ID"):
+            if o.__class__ != dict or not o.get("ID"):
                 return format_json(objs)
             short += ["{} {}".format("ID", o["ID"])]
             short += ([" {: <15} {}".format(p, get_by_path(o, p))
