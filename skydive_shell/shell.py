@@ -35,7 +35,7 @@ v : V ")"
 expr : expr "." expr
      | traversal
 
-traversal : HAS "(" HAS_METADATA ("," HAS_VALUE)? ")"
+traversal : HAS HAS_METADATA ("," HAS_VALUE)? ")"
           | OUT
           | KEYS
           | COUNT
@@ -54,7 +54,7 @@ CAPTURE_UUID : /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/
 
 G : "g"
 V : "v("
-HAS : "has"
+HAS : "has("
 VALUES : "values"
 DEDUP : "dedup()"
 LIMIT : "limit"
@@ -88,7 +88,7 @@ token_mapping = {"__COMMA": ",",
                  "CAPTURE_CREATE": "create",
                  "CAPTURE_DELETE": "delete",
                  "V": "v(",
-                 "HAS": "has",
+                 "HAS": "has(",
                  "VALUES": "values",
                  "DEDUP": "dedup()",
                  "LIMIT": "limit",
