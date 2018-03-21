@@ -19,9 +19,15 @@ from pygments.formatters import TerminalFormatter
 # We explicitly define all terminal in order to predict their name for
 # the completion mapping
 skydive_grammar = """
-start : G "." v ("." expr)? " "? -> gremlin
+start : gremlin                  -> gremlin
       | _SET " " _option         -> set
       | _HELP                    -> help
+      | _capture                  -> capture
+
+_capture : _CAPTURE " " CAPTURE_LIST
+
+!gremlin : G "." v ("." expr)? " "?
+
 v : V ")"
   | V STRING ")"
 
@@ -57,6 +63,8 @@ _JSON : "json"
 _SET : ":set"
 _FORMAT : "format"
 _HELP : ":?"
+_CAPTURE: "capture"
+CAPTURE_LIST: "list"
 
 %import common.ESCAPED_STRING   -> STRING
 %import common.NUMBER
@@ -71,6 +79,8 @@ token_mapping = {"__COMMA": ",",
                  "__DOT": ".",
                  "__SPACE": " ",
 
+                 "_CAPTURE": "capture",
+                 "CAPTURE_LIST": "list",
                  "V": "v(",
                  "HAS": "has",
                  "VALUES": "values",
@@ -111,24 +121,42 @@ def find_valid_expr(expr):
     return "", ""
 
 
-def skydive_query(endpoint, query):
-        data = json.dumps(
-            {"GremlinQuery": query}
-        )
-        req = urllib.request.Request("http://%s/api/topology" % endpoint,
-                                     data.encode(),
-                                     {'Content-Type': 'application/json'})
-        try:
-            resp = urllib.request.urlopen(req)
-        except urllib.error.URLError as e:
-            logging.warning("Error while connecting to '%s': %s" % (endpoint, str(e)))
-            return "{}"
-        if resp.getcode() != 200:
-            logging.warning("Skydive returns error code '%d' for the query '%s'" % (resp.getcode(), query))
-            return "{}"
+def skydive_post(endpoint, command, data):
+    d = None
+    if data is not None:
+        d = data.encode()
+    req = urllib.request.Request("http://%s/api/%s" % (endpoint, command),
+                                 d,
+                                 {'Content-Type': 'application/json'})
+    try:
+        resp = urllib.request.urlopen(req)
+    except urllib.error.URLError as e:
+        logging.warning("Error while connecting to '%s': %s" % (endpoint, str(e)))
+        return "{}"
+    if resp.getcode() != 200:
+        logging.warning("Skydive returns error code '%d' for the data '%s'" % (resp.getcode(), data))
+        return "{}"
 
-        data = resp.read()
-        return data.decode()
+    data = resp.read()
+    return data.decode()
+
+
+def skydive_query(endpoint, query):
+    data = json.dumps(
+        {"GremlinQuery": query}
+    )
+    return skydive_post(endpoint, "topology", data)
+
+
+def skydive_capture_create(endpoint, query):
+    data = json.dumps(
+        {"GremlinQuery": query}
+    )
+    return skydive_post(endpoint, "capture", data)
+
+
+def skydive_capture_list(endpoint):
+    return skydive_post(endpoint, "capture", None)
 
 
 # Generates a list of string (if possible) from the skydive_query
@@ -227,6 +255,9 @@ def format_pretty(objs):
 class ShellTree(InlineTransformer):
     formatter = "json"
 
+    def capture(self, a):
+        return ("capture", a)
+
     def help(self, *args): return ("help", None)
 
     def set(self, a): return ("set", a)
@@ -259,6 +290,8 @@ def main():
     print("Using Skydive Analyzer %s:%s" % (args.host, args.port))
     print("Type :? for help")
 
+    print(skydive_capture_list(skydive_url))
+
     history = InMemoryHistory()
 
     validator = SkydiveValidator()
@@ -282,6 +315,10 @@ def main():
             formatFunctionName = eval(arg)
         elif action == "help":
             help()
+        elif action == "capture" and arg == "list":
+            r = skydive_capture_list(skydive_url)
+            j = json.loads(r)
+            print(format_json(j))
         else:
             r = skydive_query(skydive_url, query)
             j = json.loads(r)
