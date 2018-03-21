@@ -33,6 +33,7 @@ traversal : HAS "(" HAS_METADATA ("," HAS_VALUE)? ")"
           | COUNT
           | VALUES "(" HAS_METADATA ")"
           | DEDUP
+          | LIMIT "(" NUMBER ")"
 
 _option : _FORMAT " " format
 !format : _PRETTY
@@ -46,6 +47,7 @@ V : "v("
 HAS : "has"
 VALUES : "values"
 DEDUP : "dedup()"
+LIMIT : "limit"
 OUT : "out()"
 KEYS : "keys()"
 COUNT : "count()"
@@ -55,6 +57,7 @@ _SET : ":set"
 _FORMAT : "format"
 
 %import common.ESCAPED_STRING   -> STRING
+%import common.NUMBER
 """
 
 larkParser = Lark(skydive_grammar)
@@ -69,6 +72,7 @@ token_mapping = {"__COMMA": ",",
                  "HAS": "has",
                  "VALUES": "values",
                  "DEDUP": "dedup()",
+                 "LIMIT": "limit",
                  "KEYS": "keys()",
                  "COUNT": "count()",
                  "G": "g",
@@ -121,6 +125,8 @@ def skydive_query_list_string(endpoint, query):
     return ['"%s"' % a for a in objs if a.__class__ == str]
 
 
+# We use parser errors with expected TOKEN to generate the completion
+# list.
 def get_completions(endpoint, query):
     completions = []
     position = 0
