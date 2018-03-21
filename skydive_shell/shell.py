@@ -1,29 +1,28 @@
-import pprint
 import argparse
 import json
 import urllib.request
 import logging
+import functools
+import operator
 
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.validation import Validator, ValidationError
 from prompt_toolkit.history import InMemoryHistory
 
-from lark import Lark, UnexpectedInput
+from lark import Lark, UnexpectedInput, InlineTransformer
 
-import json
 from pygments import highlight
 from pygments.lexers import JsonLexer
 from pygments.formatters import TerminalFormatter
 
-
+# We explicitly define all terminal in order to predict their name for
+# the completion mapping
 skydive_grammar = """
-start : G "." v ("." expr)? " "?
-G : "g"
+start : G "." v ("." expr)? " "? -> gremlin
+      | _SET " " _option         -> set
 v : V ")"
   | V STRING ")"
-
-V : "v("
 
 expr : expr "." expr
      | traversal
@@ -33,27 +32,44 @@ traversal : HAS "(" HAS_METADATA ("," HAS_VALUE)? ")"
           | KEYS
           | COUNT
 
-HAS : "has"
+_option : _FORMAT " " format
+!format : _PRETTY
+        | _JSON
+
 HAS_METADATA : STRING
 HAS_VALUE : STRING
 
+G : "g"
+V : "v("
+HAS : "has"
 OUT : "out()"
 KEYS : "keys()"
 COUNT : "count()"
+_PRETTY : "pretty"
+_JSON : "json"
+_SET : ":set"
+_FORMAT : "format"
 
 %import common.ESCAPED_STRING   -> STRING
 """
 
 larkParser = Lark(skydive_grammar)
 
+# This is to generate completions based on parsing errors
 token_mapping = {"__COMMA": ",",
                  "__RPAR": ")",
                  "__LPAR": "(",
                  "__DOT": ".",
+
                  "V": "v(",
                  "HAS": "has",
                  "KEYS": "keys()",
                  "COUNT": "count()",
+                 "G": "g",
+                 "_SET": ":set",
+                 "_FORMAT": "format",
+                 "_PRETTY": "pretty",
+                 "_JSON": "json",
                  "OUT": "out()"}
 
 
@@ -91,33 +107,34 @@ def skydive_query(endpoint, query):
         return data.decode()
 
 
+# Generates a list of string (if possible) from the skydive_query
+# output.
 def skydive_query_list_string(endpoint, query):
     l = skydive_query(endpoint, query)
     objs = json.loads(l)
     return ['"%s"' % a for a in objs if a.__class__ == str]
 
 
-def skydive_get_completions(endpoint, query):
+def get_completions(endpoint, query):
     completions = []
     position = 0
     try:
         # We add a space at the end of the query to let the parser
         # generates an UnexpectedInput error in order to get back
         # useful parsing information
-        larkParser.parse(query + " ")
+        larkParser.parse(query + "\0")
     except UnexpectedInput as e:
-        # print(e)
+        logging.debug("UnexpectedInput: %s" % e)
         base, partial = (find_valid_expr(query))
-        # print("base: %s last: %s tree: %s" % (base, last, tree))
         position = e.column - len(query)
         if "HAS_METADATA" in e.allowed:
             # To remove the introduced leading space
-            partial = e.context[:-1]
+            partial = e.context[:-2]
             request = format("%s.keys()" % base)
             completions = skydive_query_list_string(endpoint, request)
         elif "HAS_VALUE" in e.allowed:
             # To remove the introduced leading space
-            partial = e.context[:-1]
+            partial = e.context[:-2]
             base, last = (find_valid_expr(query[0:e.column-1]))
             request = base + "." + last.replace("has", "values") + ")"
             completions = skydive_query_list_string(endpoint, request)
@@ -134,10 +151,13 @@ def skydive_get_completions(endpoint, query):
 
 class SkydiveValidator(Validator):
     def validate(self, document):
+        if document.text == "":
+            raise ValidationError(message='Input cannot be empty!',
+                                  cursor_position=len(document.text))
         try:
             larkParser.parse(document.text)
         except:
-            raise ValidationError(message='Non valid Gremlin expression',
+            raise ValidationError(message='This is a non valid Gremlin expression',
                                   cursor_position=len(document.text))
 
 
@@ -146,9 +166,47 @@ class SkydiveCompleter(Completer):
         self._skydive_url = skydive_url
 
     def get_completions(self, document, complete_event):
-        position, c = skydive_get_completions(self._skydive_url,
-                                              document.text_before_cursor)
+        position, c = get_completions(self._skydive_url,
+                                      document.text_before_cursor)
         return [Completion(i, start_position=position) for i in c]
+
+
+def format_json(objs):
+    j = json.dumps(objs, indent=2, sort_keys=True)
+    return highlight(j, JsonLexer(), TerminalFormatter())
+
+
+# We fallback on format_json if objs can not be pretty printed
+def format_pretty(objs):
+    fields = ("Name", "Host", "Metadata.Name", "Metadata.Type")
+    short = []
+
+    def get_by_path(d, path):
+        try:
+            return functools.reduce(operator.getitem, path.split("."), d)
+        except KeyError:
+            return None
+
+    if objs.__class__ is list:
+        for o in objs:
+            # If object is not a node, we don't  it
+            if not o.get("ID"):
+                return format_json(objs)
+            short += ["{} {}".format("ID", o["ID"])]
+            short += ([" {: <15} {}".format(p, get_by_path(o, p))
+                       for p in fields if get_by_path(o, p) is not None])
+    return "\n".join(short)
+
+
+class ShellTree(InlineTransformer):
+    formatter = "json"
+
+    def set(self, a): return ("set", a)
+
+    def gremlin(self, *args): return ("gremlin", None)
+
+    def format(self, arg):
+        return "format_" + arg
 
 
 def main():
@@ -158,12 +216,16 @@ def main():
                         help='Skydive analyzer host')
     parser.add_argument('--port', default="8082",
                         help='Skydive analyzer port')
+    parser.add_argument('--debug', default=False,
+                        action="store_true",
+                        help='Enable debug mode')
     parser.add_argument('--disable-validation', default=False,
                         action="store_true",
-                        help='Disable Gremlin query validation ')
+                        help='Disable Gremlin query validation')
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.DEBUG)
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
 
     skydive_url = "%s:%s" % (args.host, args.port)
     print("Using Skydive Analyzer %s:%s" % (args.host, args.port))
@@ -172,7 +234,10 @@ def main():
 
     validator = SkydiveValidator()
     if args.disable_validation:
+        print("WARINING: ':set' commamnds are not supported when 'disable-validation' is set")
         validator = None
+
+    formatFunctionName = format_json
 
     while True:
         query = prompt('> ',
@@ -181,6 +246,12 @@ def main():
                        history=history,
                        complete_while_typing=False)
 
-        r = skydive_query(skydive_url, query)
-        j = json.dumps(json.loads(r), indent=2, sort_keys=True)
-        print(highlight(j, JsonLexer(), TerminalFormatter()))
+        tree = larkParser.parse(query)
+        logging.debug("Tree: %s" % tree)
+        action, arg = ShellTree().transform(tree)
+        if action == "set":
+            formatFunctionName = eval(arg)
+        else:
+            r = skydive_query(skydive_url, query)
+            j = json.loads(r)
+            print(formatFunctionName(j))

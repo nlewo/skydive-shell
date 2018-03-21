@@ -10,7 +10,8 @@ setup(
     },
     install_requires=[
         'prompt-toolkit',
-        'lark-parser'
+        'lark-parser',
+        'pygments'
     ],
     test_suite="tests",
     author="lewo",
