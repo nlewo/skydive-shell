@@ -30,7 +30,7 @@ start : gremlin                  -> gremlin
 _capture : _CAPTURE " " CAPTURE_LIST
          | _CAPTURE " " CAPTURE_CREATE " " gremlin
          | _CAPTURE " " CAPTURE_DELETE " " CAPTURE_UUID
-!gremlin : G "." v ("." expr)? " "?
+gremlin : G "." v ("." expr)?
 
 v : V ")"
   | V STRING ")"
