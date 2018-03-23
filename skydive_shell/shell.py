@@ -111,10 +111,11 @@ token_mapping = {"__COMMA": ",",
 
 def help():
     msg = (
-        "--- The Skydive shell help ---\n"
-        " > ?   for infinite recursion\n"
-        " > set to set contextual options\n"
-        " > g   for Skydive query (Gremlin dialect)\n"
+        "--- The Skydive Shell help ---\n"
+        " > ?          for infinite recursion\n"
+        " > set        to set contextual options\n"
+        " > g          for Skydive query (Gremlin dialect)\n"
+        " > capture    manage Skydive capture\n"
     )
     print(msg)
 
@@ -274,7 +275,7 @@ def main():
 
     skydive_url = "%s:%s" % (args.host, args.port)
     print("Using Skydive Analyzer %s:%s" % (args.host, args.port))
-    print("Type :? for help")
+    print("Type ? for help")
 
     conf_dir = os.path.expanduser('~/.config/skydive-shell/')
     os.makedirs(conf_dir, exist_ok=True)
