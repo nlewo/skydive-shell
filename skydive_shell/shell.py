@@ -11,6 +11,7 @@ from prompt_toolkit.validation import Validator, ValidationError
 from prompt_toolkit.history import FileHistory
 
 from lark import Lark, UnexpectedInput, InlineTransformer
+from lark.reconstruct import Reconstructor
 
 from pygments import highlight
 from pygments.lexers import JsonLexer
@@ -122,16 +123,27 @@ def help():
 # each time the last character.
 # For instance:
 # find_valid_expr("g.v().has(") returns ("g.v()", ".has(")
-def find_valid_expr(expr):
+def _find_valid_expr(expr):
+    tree = None
     for i in range(len(expr), 1, -1):
         try:
-            larkParser.parse(expr[:i])
+            tree = larkParser.parse(expr[:i])
         except:
             continue
-        # Really hacky!!! this is to remove "capture list g."
-        base = expr[:i].split(" ")[-1]
-        return base, expr[i+1:]
-    return "", ""
+        base = expr[:i]
+        return tree, base, expr[i+1:]
+    return tree, "", ""
+
+
+def find_valid_gremlin_expr(expr):
+    tree, base, partial = _find_valid_expr(expr)
+    if tree is None:
+        return "", partial
+    try:
+        g = next(tree.find_data("gremlin"))
+    except StopIteration:
+        return "", partial
+    return Reconstructor(larkParser).reconstruct(g), partial
 
 
 # We use parser errors with expected TOKEN to generate the completion
@@ -140,33 +152,35 @@ def get_completions(endpoint, query):
     completions = []
     position = 0
     try:
-        # We add a space at the end of the query to let the parser
+        # We add a eol at the end of the query to let the parser
         # generates an UnexpectedInput error in order to get back
         # useful parsing information
         larkParser.parse(query + "\0")
     except UnexpectedInput as e:
         logging.debug("UnexpectedInput: %s" % e)
-        base, partial = (find_valid_expr(query))
+        partial = ""
         position = e.column - len(query)
         if "HAS_METADATA" in e.allowed:
-            # To remove the introduced leading space
+            gremlin, partial = find_valid_gremlin_expr(query)
+            # To remove the introduced leading character
             partial = e.context[:-1]
-            request = format("%s.keys()" % base)
+            request = format("%s.keys()" % gremlin)
             completions = api.gremlin_query_list_string(endpoint, request)
         elif "HAS_VALUE" in e.allowed:
-            # To remove the introduced leading space
+            gremlin, partial = find_valid_gremlin_expr(query)
+            # To remove the introduced leading character
             partial = e.context[:-1]
-            base, last = (find_valid_expr(query[0:e.column-1]))
-            request = base + "." + last.replace("has", "values") + ")"
+            gremlin, last = (find_valid_gremlin_expr(query[0:e.column-1]))
+            request = gremlin + "." + last.replace("has", "values") + ")"
             completions = api.gremlin_query_list_string(endpoint, request)
         elif "CAPTURE_UUID" in e.allowed:
             j = json.loads(api.request(
                 "http://%s/api/capture" % endpoint))
             completions = j.keys()
-            pass
         elif "STRING" in e.allowed:
             pass
         else:
+            partial = query[e.column:]
             completions = [token_mapping[c] for c in e.allowed
                            if token_mapping.get(c)]
 
