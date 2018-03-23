@@ -292,7 +292,7 @@ def main():
                        completer=SkydiveCompleter(skydive_url),
                        validator=validator,
                        history=history,
-                       complete_while_typing=False)
+                       complete_while_typing=True)
 
         tree = larkParser.parse(query)
         logging.debug("Tree: %s" % tree)
