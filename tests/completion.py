@@ -28,10 +28,10 @@ class TestCompletions(unittest.TestCase):
 
     def test_set_completions(self):
         self.assertEqual(
-            skydive_shell.get_completions("localhost:8182", ":set "),
+            skydive_shell.get_completions("localhost:8182", "set "),
             (0, ['format']))
         self.assertEqual(
-            skydive_shell.get_completions("localhost:8182", ":set format "),
+            skydive_shell.get_completions("localhost:8182", "set format "),
             (0, ['json', 'pretty']))
 
     def test_find_valid_gremlin_expr(self):

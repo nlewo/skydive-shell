@@ -68,9 +68,9 @@ KEYS : "keys()"
 COUNT : "count()"
 _PRETTY : "pretty"
 _JSON : "json"
-_SET : ":set"
+_SET : "set"
 _FORMAT : "format"
-_HELP : ":?"
+_HELP : "?"
 _CAPTURE: "capture"
 CAPTURE_LIST: "list"
 CAPTURE_CREATE: "create"
@@ -101,8 +101,8 @@ token_mapping = {"__COMMA": ",",
                  "KEYS": "keys()",
                  "COUNT": "count()",
                  "G": "g",
-                 "_SET": ":set",
-                 "_HELP": ":?",
+                 "_SET": "set",
+                 "_HELP": "?",
                  "_FORMAT": "format",
                  "_PRETTY": "pretty",
                  "_JSON": "json",
@@ -112,9 +112,9 @@ token_mapping = {"__COMMA": ",",
 def help():
     msg = (
         "--- The Skydive shell help ---\n"
-        " > :?   for infinite recursion\n"
-        " > :set to set contextual options\n"
-        " > g    for Skydive query (Gremlin dialect)\n"
+        " > ?   for infinite recursion\n"
+        " > set to set contextual options\n"
+        " > g   for Skydive query (Gremlin dialect)\n"
     )
     print(msg)
 
