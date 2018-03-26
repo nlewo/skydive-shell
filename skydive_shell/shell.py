@@ -164,13 +164,15 @@ def get_completions(endpoint, query):
         if "HAS_METADATA" in e.allowed:
             gremlin, partial = find_valid_gremlin_expr(query)
             # To remove the introduced leading character
-            partial = e.context[:-1]
+            # Be careful, this only work if we complete the end of the query
+            partial = query[e.column:]
             request = format("%s.keys()" % gremlin)
             completions = api.gremlin_query_list_string(endpoint, request)
         elif "HAS_VALUE" in e.allowed:
             gremlin, partial = find_valid_gremlin_expr(query)
-            # To remove the introduced leading character
-            partial = e.context[:-1]
+            # To remove the introduced leading introduced character...
+            # Be careful, this only work if we complete the end of the query
+            partial = query[e.column:]
             gremlin, last = (find_valid_gremlin_expr(query[0:e.column-1]))
             request = gremlin + "." + last.replace("has", "values") + ")"
             completions = api.gremlin_query_list_string(endpoint, request)
