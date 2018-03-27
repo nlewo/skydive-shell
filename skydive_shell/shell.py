@@ -27,6 +27,7 @@ start : gremlin                  -> gremlin
       | _SET " " _option         -> set
       | _HELP                    -> help
       | _capture                 -> capture
+      | _EXIT                    -> exit
 
 _capture : _CAPTURE " " CAPTURE_LIST
          | _CAPTURE " " CAPTURE_CREATE " " gremlin
@@ -82,6 +83,7 @@ _CAPTURE: "capture"
 CAPTURE_LIST: "list"
 CAPTURE_CREATE: "create"
 CAPTURE_DELETE: "delete"
+_EXIT : "exit"
 """
 
 larkParser = Lark(skydive_grammar + skydive_tokens)
@@ -239,6 +241,9 @@ def format_pretty(objs):
 class ShellTree(InlineTransformer):
     formatter = "json"
 
+    def exit(self, *args):
+        return ("exit", None)
+
     def capture(self, *args):
         return ("capture", args[0])
 
@@ -312,6 +317,8 @@ def main():
         elif action == "capture" and arg == "delete":
             capture_id = query.split(" ", 2)[2]
             api.capture_delete(skydive_url, capture_id)
+        elif action == "exit":
+            exit(0)
         else:
             r = api.gremlin_query(skydive_url, query)
             j = json.loads(r)
