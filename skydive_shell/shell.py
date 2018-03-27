@@ -56,6 +56,13 @@ HAS_METADATA : STRING
 HAS_VALUE : STRING
 CAPTURE_UUID : /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/
 
+%import common.ESCAPED_STRING   -> STRING
+%import common.NUMBER
+"""
+
+# The grammar and tokens are split in order to be able to generate
+# completion items from tokens
+skydive_tokens = """
 G : "g"
 V : "v("
 HAS : "has("
@@ -75,38 +82,26 @@ _CAPTURE: "capture"
 CAPTURE_LIST: "list"
 CAPTURE_CREATE: "create"
 CAPTURE_DELETE: "delete"
-
-%import common.ESCAPED_STRING   -> STRING
-%import common.NUMBER
 """
 
-larkParser = Lark(skydive_grammar)
+larkParser = Lark(skydive_grammar + skydive_tokens)
+
+
+# From the tokens string, generates a completion dict
+def token_to_completions(tokens):
+    c = {}
+    for i in tokens.split("\n"):
+        t = i.replace(" ", "").replace('"', '').split(":")
+        if len(t) == 2:
+            c.update({t[0]: t[1]})
+    return c
 
 # This is to generate completions based on parsing errors
 token_mapping = {"__COMMA": ",",
                  "__RPAR": ")",
                  "__LPAR": "(",
-                 "__DOT": ".",
-
-                 "_CAPTURE": "capture",
-                 "CAPTURE_LIST": "list",
-                 "CAPTURE_CREATE": "create",
-                 "CAPTURE_DELETE": "delete",
-                 "V": "v(",
-                 "HAS": "has(",
-                 "VALUES": "values",
-                 "DEDUP": "dedup()",
-                 "FLOWS": "flows()",
-                 "LIMIT": "limit",
-                 "KEYS": "keys()",
-                 "COUNT": "count()",
-                 "G": "g",
-                 "_SET": "set",
-                 "_HELP": "?",
-                 "_FORMAT": "format",
-                 "_PRETTY": "pretty",
-                 "_JSON": "json",
-                 "OUT": "out()"}
+                 "__DOT": "."}
+token_mapping.update(token_to_completions(skydive_tokens))
 
 
 def help():
