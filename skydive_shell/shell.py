@@ -24,32 +24,32 @@ from . import api
 # the completion mapping
 skydive_grammar = """
 start : gremlin                  -> gremlin
-      | _SET WS+ _option         -> set
+      | _SET " " _option         -> set
       | _HELP                    -> help
       | _capture                 -> capture
       | _EXIT                    -> exit
 
-_capture : _CAPTURE WS+ CAPTURE_LIST
-         | _CAPTURE WS+ CAPTURE_CREATE WS+ gremlin
-         | _CAPTURE WS+ CAPTURE_DELETE WS+ CAPTURE_UUID
+_capture : _CAPTURE " " CAPTURE_LIST
+         | _CAPTURE " " CAPTURE_CREATE " " gremlin
+         | _CAPTURE " " CAPTURE_DELETE " " CAPTURE_UUID
 gremlin : G "." v ("." expr)?
 
-v : V WS* ")"
-  | V WS* STRING WS* ")"
+v : V ")"
+  | V STRING ")"
 
 expr : expr "." expr
      | traversal
 
-traversal : HAS WS* HAS_METADATA (WS* "," WS* HAS_VALUE)? WS* ")"
+traversal : HAS HAS_METADATA ("," HAS_VALUE)? ")"
           | OUT
           | KEYS
           | COUNT
-          | VALUES "(" WS* HAS_METADATA WS* ")"
+          | VALUES "(" HAS_METADATA ")"
           | DEDUP
-          | LIMIT "(" WS* NUMBER WS* ")"
+          | LIMIT "(" NUMBER ")"
           | FLOWS
 
-_option : _FORMAT WS+ format
+_option : _FORMAT " " format
 !format : _PRETTY
         | _JSON
 
@@ -64,7 +64,6 @@ CAPTURE_UUID : /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/
 # The grammar and tokens are split in order to be able to generate
 # completion items from tokens
 skydive_tokens = """
-WS : " "
 G : "g"
 V : "v("
 HAS : "has("
