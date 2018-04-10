@@ -11,7 +11,8 @@ setup(
     install_requires=[
         'prompt-toolkit',
         'lark-parser',
-        'pygments'
+        'pygments',
+        'skydive-client>=0.4.5'
     ],
     test_suite="tests",
     author="lewo",
