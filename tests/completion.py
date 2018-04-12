@@ -67,10 +67,14 @@ class TestCompletions(unittest.TestCase):
             skydive_shell.get_completions("localhost:8182", "set format "),
             (0, ['json', 'pretty']))
 
-    def test_find_valid_gremlin_expr(self):
+
+class TestFindValidGremlinExpr(unittest.TestCase):
+    def test_capture_create(self):
         self.assertEqual(
             skydive_shell.find_valid_gremlin_expr("capture create g.v().has("),
             ('g.v()', 'has('))
+
+    def test_capture_gremlin(self):
         self.assertEqual(
             skydive_shell.find_valid_gremlin_expr("g.v().ha"),
             ('g.v()', 'ha'))

@@ -10,6 +10,10 @@ class TestParser(unittest.TestCase):
         skydive_shell.larkParser.parse(
             "capture delete 59e1d836-81b2-4781-46a5-1a423c6486e5")
 
+    def test_capture_list(self):
+        skydive_shell.larkParser.parse(
+            "capture list")
+
 
 class TestReconstructor(unittest.TestCase):
 
@@ -19,11 +23,16 @@ class TestReconstructor(unittest.TestCase):
                      'g.v().has("Name").has("Driver")',
                      'capture create g.v().has("Name").has("Driver")',
                      'g.v().has("Name")']:
+            self.assertEqual(expr, self._deconstruct_reconstruct(expr))
 
-            tree = skydive_shell.larkParser.parse(expr)
-            new_expr = Reconstructor(
-                skydive_shell.larkParser).reconstruct(tree)
-            self.assertEqual(expr, new_expr)
+    def test_capture_list(self):
+        expr = 'capture list'
+        self.assertEqual(expr, self._deconstruct_reconstruct(expr))
+
+    def _deconstruct_reconstruct(self, expr):
+        tree = skydive_shell.larkParser.parse(expr)
+        return Reconstructor(
+            skydive_shell.larkParser).reconstruct(tree)
 
 
 if __name__ == '__main__':

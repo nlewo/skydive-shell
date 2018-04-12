@@ -10,29 +10,33 @@ from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.validation import Validator, ValidationError
 from prompt_toolkit.history import FileHistory
 
-from lark import Lark, UnexpectedInput, InlineTransformer
+from lark import Lark, UnexpectedInput, Transformer, ParseError
 from lark.reconstruct import Reconstructor
 
 from pygments import highlight
 from pygments.lexers import JsonLexer
 from pygments.formatters import TerminalFormatter
 
-from skydive.rest.client import RESTClient
-# from . import api
+from skydive.rest.client import RESTClient, BadRequest
 
 
 # We explicitly define all terminal in order to predict their name for
 # the completion mapping
 skydive_grammar = """
-start : gremlin                  -> gremlin
-      | _SET " " _option         -> set
+start : gremlin                 -> gremlin_query
+      | _SET " " _option
       | _HELP                    -> help
-      | _capture                 -> capture
+      | capture
       | _EXIT                    -> exit
 
-_capture : _CAPTURE " " CAPTURE_LIST
-         | _CAPTURE " " CAPTURE_CREATE " " gremlin
-         | _CAPTURE " " CAPTURE_DELETE " " CAPTURE_UUID
+capture : capture_list
+        | capture_delete
+        | capture_create
+
+capture_list : CAPTURE " " CAPTURE_LIST
+capture_create : CAPTURE " " CAPTURE_CREATE " " gremlin
+capture_delete : CAPTURE " " CAPTURE_DELETE " " CAPTURE_UUID
+
 gremlin : G "." v ("." expr)?
 
 v : V ")"
@@ -51,8 +55,8 @@ traversal : HAS HAS_METADATA ("," HAS_VALUE)? ")"
           | FLOWS
 
 _option : _FORMAT " " format
-!format : _PRETTY
-        | _JSON
+!format : _PRETTY -> pretty
+        | _JSON   -> json
 
 HAS_METADATA : STRING
 HAS_VALUE : STRING
@@ -80,7 +84,7 @@ _JSON : "json"
 _SET : "set"
 _FORMAT : "format"
 _HELP : "?"
-_CAPTURE: "capture"
+CAPTURE: "capture"
 CAPTURE_LIST: "list"
 CAPTURE_CREATE: "create"
 CAPTURE_DELETE: "delete"
@@ -127,7 +131,7 @@ def _find_valid_expr(expr):
     for i in range(len(expr), 1, -1):
         try:
             tree = larkParser.parse(expr[:i])
-        except:
+        except (UnexpectedInput, ParseError):
             continue
         base = expr[:i]
         return tree, base, expr[i+1:]
@@ -150,6 +154,7 @@ def find_valid_gremlin_expr(expr):
 def gremlin_query_list_string(skydive_client, query):
     objs = skydive_client.lookup(query)
     return ['"%s"' % a for a in objs if a.__class__ == str]
+
 
 # We use parser errors with expected TOKEN to generate the completion
 # list.
@@ -244,23 +249,49 @@ def format_pretty(objs):
     return "\n".join(short)
 
 
-class ShellTree(InlineTransformer):
-    formatter = "json"
+class Eval(Transformer):
+    formatFunction = format_json
 
-    def exit(self, *args):
-        return ("exit", None)
+    def __init__(self, skydive_client):
+        self._skydive_client = skydive_client
 
-    def capture(self, *args):
-        return ("capture", args[0])
+    def exit(self, *args): exit(0)
 
-    def help(self, *args): return ("help", None)
+    def capture_create(self, args):
+        g = args[2]
+        q = Reconstructor(larkParser).reconstruct(g)
+        try:
+            r = self._skydive_client.capture_create(q)
+        except BadRequest as e:
+            print("Error: %s" % e)
+        else:
+            print(format_json(r))
 
-    def set(self, a): return ("set", a)
+    def capture_list(self, args):
+        r = self._skydive_client.capture_list()
+        print(format_json(r))
 
-    def gremlin(self, *args): return ("gremlin", None)
+    def capture_delete(self, args):
+        uuid = args[2]
+        try:
+            self._skydive_client.capture_delete(uuid)
+        except BadRequest as e:
+            print("Errror: ", e)
 
-    def format(self, arg):
-        return "format_" + arg
+    def help(self, *args): help()
+
+    def pretty(self, data):
+        print("Set format pretty")
+        Eval.formatFunction = format_pretty
+
+    def json(self, data):
+        print("Set format json")
+        Eval.formatFunction = format_json
+
+    def gremlin_query(self, *args):
+        q = Reconstructor(larkParser).reconstruct(args[0][0])
+        r = self._skydive_client.lookup(q)
+        print(Eval.formatFunction(r))
 
 
 def main():
@@ -296,7 +327,6 @@ def main():
         print("WARINING: ':set' commamnds are not supported when 'disable-validation' is set")
         validator = None
 
-    formatFunctionName = format_json
     while True:
         query = prompt('> ',
                        completer=SkydiveCompleter(skydive_client),
@@ -306,25 +336,5 @@ def main():
 
         tree = larkParser.parse(query)
         logging.debug("Tree: %s" % tree)
-        action, arg = ShellTree().transform(tree)
-        if action == "set":
-            formatFunctionName = eval(arg)
-        elif action == "help":
-            help()
-        elif action == "capture" and arg == "list":
-            o = skydive_client.capture_list()
-            print(format_json(o))
-        elif action == "capture" and arg == "create":
-            # Hacky. We should use the tree to rebuild the gremlin
-            # expression...
-            q = query.split(" ", 2)[2]
-            r = skydive_client.capture_create(q)
-            print(format_json(r))
-        elif action == "capture" and arg == "delete":
-            capture_id = query.split(" ", 2)[2]
-            skydive_client.capture_delete(capture_id)
-        elif action == "exit":
-            exit(0)
-        else:
-            r = skydive_client.lookup(query)
-            print(formatFunctionName(r))
+
+        Eval(skydive_client).transform(tree)
