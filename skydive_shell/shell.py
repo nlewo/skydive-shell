@@ -260,12 +260,8 @@ class Eval(Transformer):
     def capture_create(self, args):
         g = args[2]
         q = Reconstructor(larkParser).reconstruct(g)
-        try:
-            r = self._skydive_client.capture_create(q)
-        except BadRequest as e:
-            print("Error: %s" % e)
-        else:
-            print(format_json(r))
+        r = self._skydive_client.capture_create(q)
+        print(format_json(r))
 
     def capture_list(self, args):
         r = self._skydive_client.capture_list()
@@ -273,10 +269,7 @@ class Eval(Transformer):
 
     def capture_delete(self, args):
         uuid = args[2]
-        try:
-            self._skydive_client.capture_delete(uuid)
-        except BadRequest as e:
-            print("Errror: ", e)
+        self._skydive_client.capture_delete(uuid)
 
     def help(self, *args): help()
 
@@ -316,7 +309,7 @@ def main():
     skydive_client = RESTClient(skydive_url)
 
     print("Using Skydive Analyzer %s:%s" % (args.host, args.port))
-    print("Type ? for help")
+    print("Type ? for help, CTRL-d for exiting")
 
     conf_dir = os.path.expanduser('~/.config/skydive-shell/')
     os.makedirs(conf_dir, exist_ok=True)
@@ -328,13 +321,22 @@ def main():
         validator = None
 
     while True:
-        query = prompt('> ',
-                       completer=SkydiveCompleter(skydive_client),
-                       validator=validator,
-                       history=history,
-                       complete_while_typing=True)
+        try:
+            query = prompt('> ',
+                           completer=SkydiveCompleter(skydive_client),
+                           validator=validator,
+                           history=history,
+                           complete_while_typing=True)
+        except KeyboardInterrupt:
+            continue
+        except EOFError:
+            print("Exiting")
+            exit(0)
 
         tree = larkParser.parse(query)
         logging.debug("Tree: %s" % tree)
 
-        Eval(skydive_client).transform(tree)
+        try:
+            Eval(skydive_client).transform(tree)
+        except BadRequest as e:
+            print("Error: %s" % e)
