@@ -18,8 +18,10 @@ that can be set with the command `set format pretty`
 #### Installation
 
 ```
-python setup.py install
+pip install skydive-shell
 ```
+
+or `python setup.py install`
 
 #### Running tests
 ```
