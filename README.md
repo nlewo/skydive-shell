@@ -26,3 +26,8 @@ python setup.py install
 python setup.py test
 ```
 
+#### Known Limitations... contributions are welcome!
+
+- Some steps are missing
+- Predicates (`within, ...`) are not supported
+- Authentification is not supported by CLI options
