@@ -69,16 +69,16 @@ CAPTURE_UUID : /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/
 # The grammar and tokens are split in order to be able to generate
 # completion items from tokens
 skydive_tokens = """
-G : "g"
-V : "v("
-HAS : "has("
-VALUES : "values"
-DEDUP : "dedup()"
-FLOWS : "flows()"
-LIMIT : "limit"
-OUT : "out()"
-KEYS : "keys()"
-COUNT : "count()"
+G : "G"
+V : "V("
+HAS : "Has("
+VALUES : "Values"
+DEDUP : "Dedup()"
+FLOWS : "Flows()"
+LIMIT : "Limit"
+OUT : "Out()"
+KEYS : "Keys()"
+COUNT : "Count()"
 _PRETTY : "pretty"
 _JSON : "json"
 _SET : "set"
@@ -183,7 +183,7 @@ def get_completions(skydive_client, query):
             # Be careful, this only work if we complete the end of the query
             partial = query[e.column:]
             gremlin, last = (find_valid_gremlin_expr(query[0:e.column-1]))
-            request = gremlin + "." + last.replace("has", "values") + ")"
+            request = gremlin + "." + last.replace("Has", "values") + ")"
             completions = gremlin_query_list_string(skydive_client, request)
         elif "CAPTURE_UUID" in e.allowed:
             j = skydive_client.capture_list()

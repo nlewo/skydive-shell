@@ -18,11 +18,11 @@ class TestParser(unittest.TestCase):
 class TestReconstructor(unittest.TestCase):
 
     def test_reconstructor(self):
-        for expr in ['g.v()',
-                     'g.v().has("Name").has("Driver").limit(1)',
-                     'g.v().has("Name").has("Driver")',
-                     'capture create g.v().has("Name").has("Driver")',
-                     'g.v().has("Name")']:
+        for expr in ['G.V()',
+                     'G.V().Has("Name").Has("Driver").Limit(1)',
+                     'G.V().Has("Name").Has("Driver")',
+                     'capture create G.V().Has("Name").Has("Driver")',
+                     'G.V().Has("Name")']:
             self.assertEqual(expr, self._deconstruct_reconstruct(expr))
 
     def test_capture_list(self):
