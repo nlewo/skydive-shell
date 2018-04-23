@@ -1,7 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import skydive_shell
-from skydive_shell import gremlin_query_list_string
 from skydive.rest.client import RESTClient
 
 
