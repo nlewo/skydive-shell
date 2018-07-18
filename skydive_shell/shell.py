@@ -4,6 +4,7 @@ import logging
 import functools
 import operator
 import os
+import urllib
 
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import Completer, Completion
@@ -338,5 +339,5 @@ def main():
 
         try:
             Eval(skydive_client).transform(tree)
-        except BadRequest as e:
+        except (BadRequest, urllib.error.URLError) as e:
             print("Error: %s" % e)
